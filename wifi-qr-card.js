@@ -1,14 +1,46 @@
+{ // bloc isolé : aucune variable ne fuit vers les autres cartes
 /*
  * Wi-Fi QR Card (FR)
  * Carte Home Assistant qui affiche le QR code de connexion Wi-Fi (scan = connexion directe), le nom du réseau,
  * un mot de passe masqué avec boutons « afficher » et « copier », et une image de fond au choix.
  * Style verre, thème clair/sombre automatique, éditeur visuel, textes en français.
  */
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.1.0";
+
+/* === NUANCE COMMUNE v2 (cartes Johan854) ===
+ * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
+ * nuance "theme" (par défaut) : suit la variable carte-nuance du thème Home Assistant ;
+ * si elle n'existe pas, la carte garde ses couleurs d'origine. Intensité : 0 = neutre, 1 = normal, 2 = très coloré. */
+const GV_NUANCES = [["braise", "Braise (rouge)", "#e0524f"], ["ocean", "Océan (bleu)", "#2f8fd8"], ["lagon", "Lagon (turquoise)", "#1fb5a8"], ["foret", "Forêt (vert)", "#3fae5a"], ["lavande", "Lavande (violet)", "#8a63d8"], ["framboise", "Framboise (rose)", "#e05597"], ["ambre", "Ambre (orange)", "#e8902c"], ["ardoise", "Ardoise (neutre)", "#7d8595"]];
+const GV_DEFAULTS = { nuance: "theme", intensite: 1 };
+const gvAccent = (c) => {
+  const p = c && c.nuance_perso;
+  if (c && c.nuance === "perso") {
+    if (Array.isArray(p) && p.length === 3) return "#" + p.map((v) => Math.max(0, Math.min(255, Math.round(+v || 0))).toString(16).padStart(2, "0")).join("");
+    if (typeof p === "string" && /^#?[0-9a-f]{6}$/i.test(p.trim())) return "#" + p.trim().replace("#", "");
+  }
+  const n = GV_NUANCES.find((x) => x[0] === (c && c.nuance));
+  return n ? n[2] : "var(--carte-nuance)";
+};
+/* Variables posées sur <ha-card> : --g-bg-x (fond dégradé teinté) et --acc-ui-x (couleur d'accent).
+ * Sans nuance (thème sans carte-nuance), elles sont invalides : chaque carte retombe alors sur ses couleurs d'origine. */
+const gvStyle = (c, dark) => {
+  const i = Number(c && c.intensite), ai = Number.isFinite(i) ? Math.max(0, Math.min(2, i)) : 1;
+  const m = (pct, base) => `color-mix(in srgb,var(--acc-ui) ${+(pct * ai).toFixed(1)}%,${base})`;
+  const bg = dark ? `linear-gradient(160deg,${m(5, "#1b1e32")} 0%,${m(11, "#1f1b2c")} 55%,${m(22, "#1c1620")} 100%)`
+    : `linear-gradient(160deg,${m(2, "#f8f9fd")} 0%,${m(5, "#eef1f8")} 55%,${m(11, "#f8f8fa")} 100%)`;
+  return `--acc-ui:${gvAccent(c)};--g-bg-x:${bg};--acc-ui-x:color-mix(in srgb,var(--acc-ui) ${dark ? "80%,#fff" : "82%,#000"})`;
+};
+const GV_FIELDS = [
+  { name: "nuance", selector: { select: { mode: "dropdown", options: [{ value: "theme", label: "Selon le thème (couleurs d'origine)" }, ...GV_NUANCES.map((n) => ({ value: n[0], label: n[1] })), { value: "perso", label: "Personnalisée" }] } } },
+  { name: "nuance_perso", selector: { color_rgb: {} } },
+  { name: "intensite", selector: { number: { min: 0, max: 2, step: 0.1, mode: "slider" } } }];
+const GV_LABELS = { nuance: "Nuance de couleur", nuance_perso: "Couleur personnalisée (nuance « Personnalisée »)", intensite: "Intensité de la nuance" };
+/* === FIN NUANCE COMMUNE === */
 
 const DEFAULTS = {
   title: "Wi‑Fi invités",
-  theme: "auto",
+  theme: "auto", nuance: "theme", intensite: 1,
   ssid: "",
   security: "",
   qr_image: "",
@@ -90,8 +122,8 @@ class WifiQrCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `<style>
       * { box-sizing:border-box; }
-      ha-card.dark { --wq-text:#f4f6fb; --wq-muted:#c3c8d8; --wq-bg:linear-gradient(160deg,#1b1e32 0%,#241a2a 55%,#2d1519 100%); --wq-border:rgba(255,255,255,.14); --wq-shadow:0 .6em 2em rgba(0,0,0,.35); --wq-glass:rgba(20,22,36,.55); --wq-glass-b:rgba(255,255,255,.16); --wq-accent:#ff7ab0; }
-      ha-card.light { --wq-text:#1c2030; --wq-muted:#4d5468; --wq-bg:linear-gradient(160deg,#f8f9fd 0%,#eef1f8 55%,#f8eff0 100%); --wq-border:rgba(20,24,40,.12); --wq-shadow:0 .4em 1.4em rgba(20,24,40,.12); --wq-glass:rgba(255,255,255,.72); --wq-glass-b:rgba(20,24,40,.1); --wq-accent:#c2245f; }
+      ha-card.dark { --wq-text:#f4f6fb; --wq-muted:#c3c8d8; --wq-bg:var(--g-bg-x,linear-gradient(160deg,#1b1e32 0%,#241a2a 55%,#2d1519 100%)); --wq-border:rgba(255,255,255,.14); --wq-shadow:0 .6em 2em rgba(0,0,0,.35); --wq-glass:rgba(20,22,36,.55); --wq-glass-b:rgba(255,255,255,.16); --wq-accent:var(--acc-ui-x,#ff7ab0); }
+      ha-card.light { --wq-text:#1c2030; --wq-muted:#4d5468; --wq-bg:var(--g-bg-x,linear-gradient(160deg,#f8f9fd 0%,#eef1f8 55%,#f8eff0 100%)); --wq-border:rgba(20,24,40,.12); --wq-shadow:0 .4em 1.4em rgba(20,24,40,.12); --wq-glass:rgba(255,255,255,.72); --wq-glass-b:rgba(20,24,40,.1); --wq-accent:var(--acc-ui-x,#c2245f); }
       ha-card { position:relative; container-type:inline-size; display:flex; flex-direction:column; align-items:center; gap:12px; padding:16px; color:var(--wq-text); border-radius:24px; border:1px solid var(--wq-border); background:var(--wq-bg); box-shadow:var(--wq-shadow); overflow:hidden; }
       ha-card > * { position:relative; }
       .bgimg { position:absolute !important; inset:0; background-size:cover; background-position:center; pointer-events:none; }
@@ -109,7 +141,7 @@ class WifiQrCard extends HTMLElement {
       .pw code { font-size:.95em; letter-spacing:.04em; word-break:break-all; }
       .pw > ha-icon { color:var(--wq-accent); }
     </style>
-    <ha-card class="${dark ? "dark" : "light"}">${bg}
+    <ha-card class="${dark ? "dark" : "light"}" style="${gvStyle(this._config, dark)}">${bg}
       ${c.title ? `<div class="t">${esc(c.title)}</div>` : ""}
       ${qr}
       <div class="net glass"><div class="ssid"><ha-icon icon="mdi:wifi"></ha-icon>${esc(c.ssid || "Réseau Wi‑Fi")}</div>
@@ -124,12 +156,12 @@ class WifiQrCard extends HTMLElement {
 }
 
 /* ---------- Éditeur visuel ---------- */
-const LABELS = { title: "Titre", theme: "Thème", ssid: "Nom du réseau (SSID)", security: "Sécurité affichée (ex. WPA2)", qr_image: "Image du QR code (URL, ex. /local/wifi/qr.png)",
+const LABELS = { ...GV_LABELS, title: "Titre", theme: "Thème", ssid: "Nom du réseau (SSID)", security: "Sécurité affichée (ex. WPA2)", qr_image: "Image du QR code (URL, ex. /local/wifi/qr.png)",
   qr_entity: "ou entité image du QR code", password: "Mot de passe (facultatif, affichable / copiable)", hint: "Texte d'invitation", image: "Image de fond (URL, facultatif)",
   image_opacity: "Opacité de l'image de fond", qr_size: "Taille du QR code (em)" };
 const SCHEMA = [
   { type: "grid", name: "", schema: [{ name: "title", selector: { text: {} } },
-    { name: "theme", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" }] } } }] },
+    { name: "theme", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" }] } } }, ...GV_FIELDS] },
   { type: "grid", name: "", schema: [{ name: "ssid", selector: { text: {} } }, { name: "security", selector: { text: {} } }] },
   { name: "qr_image", selector: { text: {} } },
   { name: "qr_entity", selector: { entity: { domain: "image" } } },
@@ -165,3 +197,4 @@ customElements.define("wifi-qr-card-editor", WifiQrCardEditor);
 window.customCards = window.customCards || [];
 window.customCards.push({ type: "wifi-qr-card", name: "Wi‑Fi QR Card (FR)", description: "QR code de connexion Wi‑Fi avec image de fond, mot de passe masqué, afficher / copier.", preview: true });
 console.info(`%c WIFI-QR-CARD %c v${CARD_VERSION} `, "color:#fff;background:#c2245f;font-weight:700;border-radius:3px 0 0 3px;padding:2px 4px", "color:#c2245f;background:#fff;font-weight:700;border-radius:0 3px 3px 0;padding:2px 4px");
+}
