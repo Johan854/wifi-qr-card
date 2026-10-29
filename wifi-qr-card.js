@@ -5,7 +5,7 @@
  * un mot de passe masqué avec boutons « afficher » et « copier », et une image de fond au choix.
  * Style verre, thème clair/sombre automatique, éditeur visuel, textes en français.
  */
-const CARD_VERSION = "1.2.0";
+const CARD_VERSION = "1.2.1";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -117,9 +117,7 @@ class WifiQrCard extends HTMLElement {
     const bg = c.image ? `<div class="bgimg" style="background-image:url('${esc(c.image)}');opacity:${Number(c.image_opacity) || 0.35}"></div>` : "";
     const size = Math.max(8, Math.min(30, Number(c.qr_size) || 15));
     const hidden = c.qr_hidden !== false && !this._qrShown;
-    const qr = hidden
-      ? `<button class="qrask glass" data-qr="show" style="width:min(100%,${size}em);height:min(100%,${size}em)"><ha-icon icon="mdi:qrcode-scan"></ha-icon><b>Afficher le QR code</b><span>Un appui pour le montrer</span></button>`
-      : url
+    const qr = url
       ? `<img class="qr" src="${esc(url)}" alt="QR code Wi‑Fi" style="width:min(100%,${size}em)">`
       : `<div class="noqr glass"><ha-icon icon="mdi:qrcode"></ha-icon><span>Indique l'image du QR code dans l'éditeur.</span></div>`;
     const pw = c.password
@@ -140,7 +138,9 @@ class WifiQrCard extends HTMLElement {
       .t { align-self:flex-start; font-weight:700; font-size:1.05em; }
       .glass { background:var(--wq-glass); border:1px solid var(--wq-glass-b); -webkit-backdrop-filter:blur(18px) saturate(140%); backdrop-filter:blur(18px) saturate(140%); }
       .qr { display:block; height:auto; border-radius:1em; filter:drop-shadow(0 .4em 1em rgba(0,0,0,.25)); }
-      .qrask { display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:.5em; aspect-ratio:1; border-radius:1em; padding:1em; text-align:center; } .qrask ha-icon { --mdc-icon-size:3.4em; color:var(--wq-accent); } .qrask span { font-size:.78em; color:var(--wq-muted); }
+      ha-card.compact { flex-direction:row; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-radius:18px; }
+      .mini { display:flex; align-items:center; gap:.6em; min-width:0; } .mini ha-icon { color:var(--wq-accent); } .mt { display:flex; flex-direction:column; min-width:0; line-height:1.15; } .mt b { font-size:.95em; } .mt small { font-size:.78em; color:var(--wq-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .qrask { flex:none; font-size:.82em; font-weight:600; padding:.5em .9em; border-radius:2em; background:var(--wq-glass); border:1px solid var(--wq-glass-b); } .qrask ha-icon { color:var(--wq-accent); }
       .qrhide { font-size:.8em; color:var(--wq-muted); }
       .noqr { display:flex; align-items:center; gap:.7em; padding:1.2em; border-radius:18px; color:var(--wq-muted); }
       .net { display:flex; flex-direction:column; align-items:center; text-align:center; padding:.5em 1em; border-radius:18px; max-width:100%; }
@@ -150,13 +150,14 @@ class WifiQrCard extends HTMLElement {
       .pw code { font-size:.95em; letter-spacing:.04em; word-break:break-all; }
       .pw > ha-icon { color:var(--wq-accent); }
     </style>
-    <ha-card class="${dark ? "dark" : "light"}" style="${gvStyle(this._config, dark)}">${bg}
+    <ha-card class="${dark ? "dark" : "light"}${hidden ? " compact" : ""}" style="${gvStyle(this._config, dark)}">${bg}
+      ${hidden ? `<div class="mini"><ha-icon icon="mdi:wifi"></ha-icon><span class="mt"><b>${esc(c.title || "Wi‑Fi")}</b>${c.ssid ? `<small>${esc(c.ssid)}</small>` : ""}</span></div><button class="qrask" data-qr="show"><ha-icon icon="mdi:qrcode-scan"></ha-icon>Afficher le QR code</button>` : `
       ${c.title ? `<div class="t">${esc(c.title)}</div>` : ""}
       ${qr}
       ${c.qr_hidden !== false && this._qrShown ? `<button class="qrhide" data-qr="hide"><ha-icon icon="mdi:eye-off-outline"></ha-icon>Masquer le QR code${Number(c.qr_auto_hide) > 0 ? ` (auto dans ${Number(c.qr_auto_hide)} s)` : ""}</button>` : ""}
       <div class="net glass"><div class="ssid"><ha-icon icon="mdi:wifi"></ha-icon>${esc(c.ssid || "Réseau Wi‑Fi")}</div>
         <div class="sub">${esc(c.hint)}${c.security ? ` · ${esc(c.security)}` : ""}</div></div>
-      ${pw}
+      ${pw}`}
     </ha-card>`;
     this.shadowRoot.querySelectorAll("[data-qr]").forEach((b) => b.addEventListener("click", () => {
       clearTimeout(this._qrTimer);

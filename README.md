@@ -46,5 +46,5 @@ Sans cette ligne, `nuance: theme` garde les couleurs d'origine de la carte.
 
 - **1.1.0** : nuance de couleur au choix (8 nuances, couleur personnalisée, intensité, ou nuance commune via `carte-nuance` dans le thème).
 
-## QR code masqué (v1.2.0)
-Par défaut (`qr_hidden: true`), le QR code n'est pas affiché ni même chargé : un bouton **Afficher le QR code** le révèle, puis il se remasque tout seul après `qr_auto_hide` secondes (60 par défaut, `0` = jamais) ou en quittant la vue. Pour le garder toujours visible : `qr_hidden: false`.
+## QR code masqué (v1.2.1)
+Par défaut (`qr_hidden: true`), la carte n'est qu'un **petit bandeau** (titre, nom du réseau et bouton **Afficher le QR code**). Un appui la déploie avec le QR code, le réseau et le mot de passe ; elle redevient un bandeau après `qr_auto_hide` secondes (60 par défaut, `0` = jamais) ou en quittant la vue. L'image du QR code n'est pas chargée tant que la carte est repliée. Pour la garder toujours dépliée : `qr_hidden: false`.
