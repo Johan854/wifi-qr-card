@@ -5,7 +5,7 @@
  * un mot de passe masqué avec boutons « afficher » et « copier », et une image de fond au choix.
  * Style verre, thème clair/sombre automatique, éditeur visuel, textes en français.
  */
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.2.0";
 
 /* === NUANCE COMMUNE v2 (cartes Johan854) ===
  * Bloc identique dans toutes les cartes. Options : nuance, nuance_perso, intensite.
@@ -50,6 +50,8 @@ const DEFAULTS = {
   image: "",
   image_opacity: 0.35,
   qr_size: 15,
+  qr_hidden: true, // le QR code reste masqué tant qu'on n'appuie pas sur « Afficher le QR code »
+  qr_auto_hide: 60, // secondes avant de le masquer de nouveau (0 = jamais)
 };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -59,6 +61,8 @@ class WifiQrCard extends HTMLElement {
   static getStubConfig() { return { ...DEFAULTS, ssid: "Mon réseau" }; }
 
   constructor() { super(); this.attachShadow({ mode: "open" }); this._show = false; this._sig = ""; }
+
+  disconnectedCallback() { clearTimeout(this._qrTimer); this._qrShown = false; } // le QR code est remasqué quand on quitte la vue
 
   setConfig(config) {
     if (!config) throw new Error("Configuration invalide");
@@ -112,7 +116,10 @@ class WifiQrCard extends HTMLElement {
     const url = this._qrUrl();
     const bg = c.image ? `<div class="bgimg" style="background-image:url('${esc(c.image)}');opacity:${Number(c.image_opacity) || 0.35}"></div>` : "";
     const size = Math.max(8, Math.min(30, Number(c.qr_size) || 15));
-    const qr = url
+    const hidden = c.qr_hidden !== false && !this._qrShown;
+    const qr = hidden
+      ? `<button class="qrask glass" data-qr="show" style="width:min(100%,${size}em);height:min(100%,${size}em)"><ha-icon icon="mdi:qrcode-scan"></ha-icon><b>Afficher le QR code</b><span>Un appui pour le montrer</span></button>`
+      : url
       ? `<img class="qr" src="${esc(url)}" alt="QR code Wi‑Fi" style="width:min(100%,${size}em)">`
       : `<div class="noqr glass"><ha-icon icon="mdi:qrcode"></ha-icon><span>Indique l'image du QR code dans l'éditeur.</span></div>`;
     const pw = c.password
@@ -133,6 +140,8 @@ class WifiQrCard extends HTMLElement {
       .t { align-self:flex-start; font-weight:700; font-size:1.05em; }
       .glass { background:var(--wq-glass); border:1px solid var(--wq-glass-b); -webkit-backdrop-filter:blur(18px) saturate(140%); backdrop-filter:blur(18px) saturate(140%); }
       .qr { display:block; height:auto; border-radius:1em; filter:drop-shadow(0 .4em 1em rgba(0,0,0,.25)); }
+      .qrask { display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:.5em; aspect-ratio:1; border-radius:1em; padding:1em; text-align:center; } .qrask ha-icon { --mdc-icon-size:3.4em; color:var(--wq-accent); } .qrask span { font-size:.78em; color:var(--wq-muted); }
+      .qrhide { font-size:.8em; color:var(--wq-muted); }
       .noqr { display:flex; align-items:center; gap:.7em; padding:1.2em; border-radius:18px; color:var(--wq-muted); }
       .net { display:flex; flex-direction:column; align-items:center; text-align:center; padding:.5em 1em; border-radius:18px; max-width:100%; }
       .ssid { display:flex; align-items:center; gap:.45em; font-weight:800; font-size:1.2em; word-break:break-all; } .ssid ha-icon { color:var(--wq-accent); }
@@ -144,10 +153,18 @@ class WifiQrCard extends HTMLElement {
     <ha-card class="${dark ? "dark" : "light"}" style="${gvStyle(this._config, dark)}">${bg}
       ${c.title ? `<div class="t">${esc(c.title)}</div>` : ""}
       ${qr}
+      ${c.qr_hidden !== false && this._qrShown ? `<button class="qrhide" data-qr="hide"><ha-icon icon="mdi:eye-off-outline"></ha-icon>Masquer le QR code${Number(c.qr_auto_hide) > 0 ? ` (auto dans ${Number(c.qr_auto_hide)} s)` : ""}</button>` : ""}
       <div class="net glass"><div class="ssid"><ha-icon icon="mdi:wifi"></ha-icon>${esc(c.ssid || "Réseau Wi‑Fi")}</div>
         <div class="sub">${esc(c.hint)}${c.security ? ` · ${esc(c.security)}` : ""}</div></div>
       ${pw}
     </ha-card>`;
+    this.shadowRoot.querySelectorAll("[data-qr]").forEach((b) => b.addEventListener("click", () => {
+      clearTimeout(this._qrTimer);
+      this._qrShown = b.dataset.qr === "show";
+      const secs = Number(c.qr_auto_hide);
+      if (this._qrShown && secs > 0) this._qrTimer = setTimeout(() => { this._qrShown = false; this._render(); }, secs * 1000);
+      this._render();
+    }));
     const t = this.shadowRoot.querySelector("[data-toggle]");
     if (t) t.addEventListener("click", () => { this._show = !this._show; this._render(); });
     const cp = this.shadowRoot.querySelector("[data-copy]");
@@ -158,7 +175,7 @@ class WifiQrCard extends HTMLElement {
 /* ---------- Éditeur visuel ---------- */
 const LABELS = { ...GV_LABELS, title: "Titre", theme: "Thème", ssid: "Nom du réseau (SSID)", security: "Sécurité affichée (ex. WPA2)", qr_image: "Image du QR code (URL, ex. /local/wifi/qr.png)",
   qr_entity: "ou entité image du QR code", password: "Mot de passe (facultatif, affichable / copiable)", hint: "Texte d'invitation", image: "Image de fond (URL, facultatif)",
-  image_opacity: "Opacité de l'image de fond", qr_size: "Taille du QR code (em)" };
+  image_opacity: "Opacité de l'image de fond", qr_size: "Taille du QR code (em)", qr_hidden: "Masquer le QR code (bouton « Afficher »)", qr_auto_hide: "Masquer de nouveau après (secondes, 0 = jamais)" };
 const SCHEMA = [
   { type: "grid", name: "", schema: [{ name: "title", selector: { text: {} } },
     { name: "theme", selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Automatique" }, { value: "light", label: "Clair" }, { value: "dark", label: "Sombre" }] } } }, ...GV_FIELDS] },
@@ -170,6 +187,7 @@ const SCHEMA = [
   { name: "image", selector: { text: {} } },
   { type: "grid", name: "", schema: [{ name: "image_opacity", selector: { number: { min: 0.05, max: 1, step: 0.05, mode: "slider" } } },
     { name: "qr_size", selector: { number: { min: 8, max: 30, mode: "box" } } }] },
+  { type: "grid", name: "", schema: [{ name: "qr_hidden", selector: { boolean: {} } }, { name: "qr_auto_hide", selector: { number: { min: 0, max: 600, mode: "box" } } }] },
 ];
 
 class WifiQrCardEditor extends HTMLElement {
